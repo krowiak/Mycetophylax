@@ -1,8 +1,11 @@
 ﻿// Learn more about F# at http://fsharp.org
 // See the 'F# Tutorial' project for more help.
+open System.Collections.Generic
 
 type ObiektDanych = ObiektDanych of float[]
 type Mrowka = {Id: int; Klasa: int; Dane: ObiektDanych}
+    
+type Przestrzen = Mrowka option[,]
     
 ///////
 //  Odległość
@@ -68,6 +71,23 @@ let BokPrzestrzeni liczbaMrowek =
     let zaokraglenie = ceil pierwiastek |> int
     2 * (zaokraglenie + 1)
 
+let ZwrocPrzestrzen bok = 
+    Array2D.init bok bok (fun _ _ -> (None:Mrowka option))
+
+let Modulo n m = ((n % m) + m) % m
+
+let SasiedztwoMoore'a s_x s_y dlugoscBoku pozycjaMrowki =
+    let m_x, m_y = pozycjaMrowki
+    let modulo x = Modulo x dlugoscBoku 
+    // SŁABO: porównanie przy tworzeniu każdego pola
+    // Do poprawy, choć bez continue to nie będzie ładna poprawka ;-(
+    [for x in (m_x-s_x)..(m_x+s_x) do
+        for y in (m_y-s_y)..(m_y+s_y) do
+            if (x, y) <> (m_x, m_y) then yield (x, y) ] 
+    |> List.map (fun (x, y) -> (modulo x, modulo y))
+
+let MrowkiZSasiedztwa (przestrzen:Przestrzen) sasiedztwo =
+    List.choose (fun (x, y) -> przestrzen.[x, y]) sasiedztwo
 
 ///////
 // Aktywacja
@@ -79,8 +99,40 @@ let PrawdopodobienstwoAktywacji = 0.1
 let SzansaAktywacji pAktywacji funPresji funOceny czas agent = 
     let presja = funPresji(czas)
     let licznik = pAktywacji ** presja
-    let wplywOceny = funOceny(agent) ** presja
+    let wplywOceny = (funOceny agent) ** presja
     licznik / (licznik + wplywOceny)
+
+///////
+// Ocena
+///////
+
+let TworzSlownikOdleglosci mrowki funOdleglosci =
+    let slownik = new Dictionary<int * int, float>();
+    let mrowkiArr = List.toArray mrowki
+    let liczbaMrowek = Array.length mrowkiArr
+    for i in 0..(liczbaMrowek-1) do
+        for j in (i+1)..(liczbaMrowek-1) do
+            let {Dane=daneI} = mrowki.[i]
+            let {Dane=daneJ} = mrowki.[j]
+            let odleglosc = funOdleglosci daneI daneJ
+            slownik.Add((i, j), odleglosc)
+    slownik
+
+let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int, float>) =
+    let s_x', s_y' = float s_x, float s_y 
+    let dzielnik = (2.0*s_x' + 1.0) * (2.0*s_y' + 1.0)
+    let pobierzOdleglosc {Id=m1} {Id=m2} =
+        let klucz = if m1 < m2 then m1, m2 else m2, m1
+        mapaOdleglosci.[klucz]
+    let ocen (przestrzen:Przestrzen) pozycjaMrowki =
+        let badanaMrowka = pozycjaMrowki ||> Array2D.get przestrzen |> Option.get
+        let mrowkiWSasiedztwie = funSasiedztwa pozycjaMrowki |> MrowkiZSasiedztwa przestrzen
+        let ocenaSkladowa mrowka2 = 1.0 - pobierzOdleglosc badanaMrowka mrowka2
+        let sumaOdleglosci = List.map ocenaSkladowa mrowkiWSasiedztwie |> List.sum
+        sumaOdleglosci / dzielnik
+    ocen
+    
+
 
 
 [<EntryPoint>]
