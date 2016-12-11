@@ -1,11 +1,10 @@
 ﻿// Learn more about F# at http://fsharp.org
 // See the 'F# Tutorial' project for more help.
+open System
 open System.Collections.Generic
-
-type ObiektDanych = ObiektDanych of float[]
-type Mrowka = {Id: int; Klasa: int; Dane: ObiektDanych}
-    
-type Przestrzen = Mrowka option[,]
+open Parser
+open Typy
+open Pomocnicze
     
 ///////
 //  Odległość
@@ -74,17 +73,15 @@ let BokPrzestrzeni liczbaMrowek =
 let ZwrocPrzestrzen bok = 
     Array2D.init bok bok (fun _ _ -> (None:Mrowka option))
 
-let Modulo n m = ((n % m) + m) % m
-
 let SasiedztwoMoore'a s_x s_y dlugoscBoku pozycjaMrowki =
     let m_x, m_y = pozycjaMrowki
     let modulo x = Modulo x dlugoscBoku 
     // SŁABO: porównanie przy tworzeniu każdego pola
     // Do poprawy, choć bez continue to nie będzie ładna poprawka ;-(
-    [for x in (m_x-s_x)..(m_x+s_x) do
+    [|for x in (m_x-s_x)..(m_x+s_x) do
         for y in (m_y-s_y)..(m_y+s_y) do
-            if (x, y) <> (m_x, m_y) then yield (x, y) ] 
-    |> List.map (fun (x, y) -> (modulo x, modulo y))
+            if (x, y) <> (m_x, m_y) then yield (x, y) |] 
+    |> Array.map (fun (x, y) -> (modulo x, modulo y))
 
 let MrowkiZSasiedztwa (przestrzen:Przestrzen) sasiedztwo =
     List.choose (fun (x, y) -> przestrzen.[x, y]) sasiedztwo
@@ -130,12 +127,62 @@ let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int,
         let ocenaSkladowa mrowka2 = 1.0 - pobierzOdleglosc badanaMrowka mrowka2
         let sumaOdleglosci = List.map ocenaSkladowa mrowkiWSasiedztwie |> List.sum
         sumaOdleglosci / dzielnik
-    ocen
-    
+    ocen    
 
+///////
+// Mrówki
+///////
+
+let tworzMrowke (id, objDanych) =
+    {Id=id; Klasa=id; Dane=objDanych}
+
+let TworzMrowki obiektyDanych =
+    obiektyDanych |> Seq.indexed |> Seq.map tworzMrowke
+
+let RozmiescMrowki (los:Random) (przestrzen:Przestrzen) mrowki =
+    let bokPrzestrzeni = Array2D.length1 przestrzen
+    let generujPozycje () = los.Next(bokPrzestrzeni)
+    for mrowka in mrowki do
+        let mutable posX = generujPozycje()
+        let mutable posY = generujPozycje()
+        while przestrzen.[posX, posY] |> Option.isSome do
+            posX <- generujPozycje()
+            posY <- generujPozycje()
+        przestrzen.[posX, posY] <- Some mrowka
+
+/////////////////////////////////////////
+// NIE DZIAŁA DLA ZAPEŁNIONEGO SĄSIEDZTWA
+// O NIE
+/////////////////////////////////////////
+let PrzemiescMrowkeLosowo (los:Random) s_x s_y (przestrzen:Przestrzen) (mrowkaX, mrowkaY) mrowka =
+    let losujZnak () = PlusLubMinus1 los
+    let losujPrzesuniecie s = los.Next(1, s + 1) * losujZnak()
+    let losujNowaPozycje s m = (losujPrzesuniecie s) + m |> Modulo s
+    let losujNoweX () = losujNowaPozycje s_x mrowkaX
+    let losujNoweY () = losujNowaPozycje s_y mrowkaY
+    let mutable noweX = losujNoweX()
+    let mutable noweY = losujNoweY()
+    while przestrzen.[noweX, noweY] |> Option.isSome do
+        noweX <- losujNoweX()
+        noweY <- losujNoweY()
+    przestrzen.[noweX, noweY] <- Some mrowka
+    przestrzen.[mrowkaX, mrowkaY] <- None
+
+            
 
 
 [<EntryPoint>]
 let main argv = 
-    printfn "%A" argv
+    let maszynaLosujaca = new Random()
+    use dane = System.IO.File.OpenRead(@"E:\Pobrane\irisBezSmieci.data")
+    let wiersze = ParsujDane dane
+    let znormalizowaneDane = wiersze |> NormalizacjaZScoreChyba
+    let mrowki = znormalizowaneDane|> TworzMrowki |> Seq.toList
+    let przestrzen = List.length mrowki |> BokPrzestrzeni |> ZwrocPrzestrzen
+    RozmiescMrowki maszynaLosujaca przestrzen mrowki
+
+    //Seq.iter (printfn "%A") mrowki
+    //printfn "%A" przestrzen
+    System.Console.ReadKey() |> ignore
+    // printfn "%A" argv
     0 // return an integer exit code
