@@ -193,25 +193,30 @@ let ZmienKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, in
 // Inne Cuda oraz Dziwy
 ///////
 
-let WypiszKlasyWPrzestrzeni (klasy:IDictionary<Mrowka, int>) (przestrzen:Przestrzen) =
+let wypiszPrzestrzen (przestrzen:Przestrzen) funkcjaReprezentacjiMrowki =
     let dlugoscBoku = Array2D.length1 przestrzen
+    printf "  "
+    for y=0 to dlugoscBoku - 1 do
+        printf "%5i" y
+    printfn ""
     for x=0 to dlugoscBoku - 1 do
+        printf "%3i" x
         for y=0 to dlugoscBoku - 1 do
             let mozeMrowka = przestrzen.[x, y]
             match mozeMrowka with
-            | Some mrowka -> printf "|%3i|" klasy.[mrowka]
+            | Some mrowka -> funkcjaReprezentacjiMrowki mrowka |> printf "|%3s|"
             | None -> printf "|   |"
         printfn "" 
 
+let WypiszKlasyWPrzestrzeni (klasy:IDictionary<Mrowka, int>) (przestrzen:Przestrzen) =
+    let okreslSymbolKlasyMrowki mrowka = klasy.[mrowka].ToString()
+    wypiszPrzestrzen przestrzen okreslSymbolKlasyMrowki
+
+
+
+
 let WypiszMrowkiWPrzestrzeni (przestrzen:Przestrzen) =
-    let dlugoscBoku = Array2D.length1 przestrzen
-    for x=0 to dlugoscBoku - 1 do
-        for y=0 to dlugoscBoku - 1 do
-            let mozeMrowka = przestrzen.[x, y]
-            match mozeMrowka with
-            | Some {Id=idMrowki} -> printf "|%3i|" idMrowki
-            | None -> printf "|   |"
-        printfn "" 
+    wypiszPrzestrzen przestrzen (fun {Id=idMrowki} -> idMrowki.ToString())
 
 let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
     let klasyMrowek = new Dictionary<Mrowka, int>() :> IDictionary<Mrowka, int>
@@ -272,7 +277,7 @@ let main argv =
     System.Console.ReadKey() |> ignore
     printfn ""
 
-    let debug = true
+    let debug = false
     let slownikKlas = Grupuj przestrzen mrowki 100 maszynaLosujaca debug
     
     System.Console.ReadKey() |> ignore
