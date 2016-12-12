@@ -160,16 +160,16 @@ let PrzemiescMrowkeLosowo (los:Random) (przestrzen:Przestrzen) sasiedztwo (mrowk
     let liczbaPol = Array.length pustePola
     if liczbaPol > 0 then
         let mrowka = przestrzen.[mrowkaX, mrowkaY] |> Option.get
-        let nowyX, nowyY = sasiedztwo.[los.Next(liczbaPol)]
         przestrzen.[mrowkaX, mrowkaY] <- None
+        let nowyX, nowyY = sasiedztwo.[los.Next(liczbaPol)]
         przestrzen.[nowyX, nowyY] <- Some mrowka
 
 let przemiescZachlannieWlasciwe funOceny (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY) =
     let przemieszczanaMrowka = przestrzen.[mrowkaX, mrowkaY] |> Option.get
     let pusteSasiedztwo = sasiedztwo |> PustePolaZSasiedztwa przestrzen
     if Seq.length pusteSasiedztwo > 0 then
-        let (najlepszeX, najlepszeY) = pusteSasiedztwo |> Seq.maxBy (funOceny przemieszczanaMrowka)
         przestrzen.[mrowkaX, mrowkaY] <- None
+        let (najlepszeX, najlepszeY) = pusteSasiedztwo |> Seq.maxBy (funOceny przemieszczanaMrowka)
         przestrzen.[najlepszeX, najlepszeY] <- Some przemieszczanaMrowka
 
 let PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc (los:Random) (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY) =
@@ -181,7 +181,7 @@ let PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc (los:Random) (przestr
 // Określa klasę nawet, jeśli mrówka nie śpi.
 // A to ci ambaras.
 ////////
-let OkreslKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka =
+let ZmienKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka =
     let klasa =
         MrowkiZSasiedztwa przestrzen sasiedztwo 
         |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
@@ -189,11 +189,32 @@ let OkreslKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, i
         |> fst
     slownikKlas.[mrowka] <- klasa
 
+///////
+// Inne Cuda oraz Dziwy
+///////
 
+let WypiszKlasyWPrzestrzeni (klasy:IDictionary<Mrowka, int>) (przestrzen:Przestrzen) =
+    let dlugoscBoku = Array2D.length1 przestrzen
+    for x=0 to dlugoscBoku - 1 do
+        for y=0 to dlugoscBoku - 1 do
+            let mozeMrowka = przestrzen.[x, y]
+            match mozeMrowka with
+            | Some mrowka -> printf "|%3i|" klasy.[mrowka]
+            | None -> printf "|   |"
+        printfn "" 
 
+let WypiszMrowkiWPrzestrzeni (przestrzen:Przestrzen) =
+    let dlugoscBoku = Array2D.length1 przestrzen
+    for x=0 to dlugoscBoku - 1 do
+        for y=0 to dlugoscBoku - 1 do
+            let mozeMrowka = przestrzen.[x, y]
+            match mozeMrowka with
+            | Some {Id=idMrowki} -> printf "|%3i|" idMrowki
+            | None -> printf "|   |"
+        printfn "" 
 
-let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) =
-    let klasyMrowek = new Dictionary<Mrowka, int>()
+let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
+    let klasyMrowek = new Dictionary<Mrowka, int>() :> IDictionary<Mrowka, int>
     for mrowka in mrowki do
         klasyMrowek.Add(mrowka, mrowka.Id)
 
@@ -205,21 +226,36 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) =
     let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI StalaPresja
     let szansaNaZachlannosc = 0.5
     let funPrzemieszczenia = PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc los przestrzen
-    let funZmianyKlasy = OkreslKlaseMrowki przestrzen klasyMrowek    
+    let funZmianyKlasy = ZmienKlaseMrowki przestrzen klasyMrowek    
 
     for t=1 to liczbaIteracji do
-        let polaMrowek = PrzestrzenNaSeqPol przestrzen |> Seq.filter (fun (x, y) -> Option.isSome przestrzen.[x, y])
-        for pole in polaMrowek do
+        for pole in PrzestrzenNaSeqPol przestrzen do
             let x, y = pole
-            let mrowka = przestrzen.[x, y] |> Option.get
-            let ocena = funOceny mrowka pole
-            let pAktywacji = funPrawdopAktywacji ocena t
-            if los.NextDouble() <= pAktywacji
-            then 
-            else 
+            match przestrzen.[x, y] with
+            | Some mrowka ->
+                let ocena = funOceny mrowka pole
+                let pAktywacji = funPrawdopAktywacji ocena t
+                let sasiedztwo = funSasiedztwa pole
+                if los.NextDouble() <= pAktywacji
+                then funPrzemieszczenia sasiedztwo pole
+                else funZmianyKlasy sasiedztwo mrowka
+            | None ->
+                ()
 
+        if debug then
+            printfn "Iteracja %i zakończona" t
+            WypiszMrowkiWPrzestrzeni przestrzen
+            printfn ""
+            Console.ReadKey() |> ignore
 
-
+    klasyMrowek
+            
+    
+///////
+// A Niech To: przemieszczanie usuwa mrówkę przed określeniem sąsiedztwa -> mrówka może się przenieśc na pole, na którym już była.
+// Bez tego mrówka próbuje się porównać sama ze sobą przy przemieszczaniu.
+// Coś należy uczynić.
+//////
             
 
 
@@ -232,9 +268,21 @@ let main argv =
     let mrowki = znormalizowaneDane|> TworzMrowki |> Seq.toList
     let przestrzen = List.length mrowki |> BokPrzestrzeni |> ZwrocPrzestrzen
     RozmiescMrowki maszynaLosujaca przestrzen mrowki
+    WypiszMrowkiWPrzestrzeni przestrzen
+    System.Console.ReadKey() |> ignore
+    printfn ""
+
+    let debug = true
+    let slownikKlas = Grupuj przestrzen mrowki 100 maszynaLosujaca debug
+    
+    System.Console.ReadKey() |> ignore
+    WypiszMrowkiWPrzestrzeni przestrzen
+    printfn ""
+    System.Console.ReadKey() |> ignore
+    WypiszKlasyWPrzestrzeni slownikKlas przestrzen
+    System.Console.ReadKey() |> ignore
 
     //Seq.iter (printfn "%A") mrowki
     //printfn "%A" przestrzen
-    System.Console.ReadKey() |> ignore
     // printfn "%A" argv
     0 // return an integer exit code
