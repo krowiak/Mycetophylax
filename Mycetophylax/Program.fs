@@ -161,7 +161,7 @@ let PrzemiescMrowkeLosowo (los:Random) (przestrzen:Przestrzen) sasiedztwo (mrowk
     if liczbaPol > 0 then
         let mrowka = przestrzen.[mrowkaX, mrowkaY] |> Option.get
         przestrzen.[mrowkaX, mrowkaY] <- None
-        let nowyX, nowyY = sasiedztwo.[los.Next(liczbaPol)]
+        let nowyX, nowyY = pustePola.[los.Next(liczbaPol)]
         przestrzen.[nowyX, nowyY] <- Some mrowka
 
 let przemiescZachlannieWlasciwe funOceny (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY) =
@@ -251,7 +251,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
             printfn "Iteracja %i zakończona" t
             WypiszMrowkiWPrzestrzeni przestrzen
             printfn ""
-            Console.ReadKey() |> ignore
+            //Console.ReadKey() |> ignore
 
     klasyMrowek
             
@@ -277,7 +277,7 @@ let main argv =
     System.Console.ReadKey() |> ignore
     printfn ""
 
-    let debug = false
+    let debug = true
     let slownikKlas = Grupuj przestrzen mrowki 100 maszynaLosujaca debug
     
     System.Console.ReadKey() |> ignore
