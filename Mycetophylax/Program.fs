@@ -84,19 +84,25 @@ let SasiedztwoMoore'a s_x s_y dlugoscBoku pozycjaMrowki =
     |> Array.map (fun (x, y) -> (modulo x, modulo y))
 
 let MrowkiZSasiedztwa (przestrzen:Przestrzen) sasiedztwo =
-    List.choose (fun (x, y) -> przestrzen.[x, y]) sasiedztwo
+    Seq.choose (fun (x, y) -> przestrzen.[x, y]) sasiedztwo
+
+let PustePolaZSasiedztwa (przestrzen:Przestrzen) sasiedztwo =
+    sasiedztwo |> Seq.filter (fun (x, y) -> przestrzen.[x, y] |> Option.isNone)
+
+let PolaMrowekZSasiedztwa (przestrzen:Przestrzen) sasiedztwo =
+    sasiedztwo |> Seq.filter (fun (x, y) -> przestrzen.[x, y] |> Option.isSome)
 
 ///////
 // Aktywacja
 ///////
 
 let StalaPresja _ = 2.0
-let PrawdopodobienstwoAktywacji = 0.1
+let PRAWDOP_AKTYWACJI = 0.1
 
-let SzansaAktywacji pAktywacji funPresji funOceny czas agent = 
-    let presja = funPresji(czas)
+let SzansaAktywacji pAktywacji funPresji ocena czas = 
+    let presja = funPresji czas
     let licznik = pAktywacji ** presja
-    let wplywOceny = (funOceny agent) ** presja
+    let wplywOceny = ocena ** presja
     licznik / (licznik + wplywOceny)
 
 ///////
@@ -121,11 +127,10 @@ let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int,
     let pobierzOdleglosc {Id=m1} {Id=m2} =
         let klucz = if m1 < m2 then m1, m2 else m2, m1
         mapaOdleglosci.[klucz]
-    let ocen (przestrzen:Przestrzen) pozycjaMrowki =
-        let badanaMrowka = pozycjaMrowki ||> Array2D.get przestrzen |> Option.get
-        let mrowkiWSasiedztwie = funSasiedztwa pozycjaMrowki |> MrowkiZSasiedztwa przestrzen
+    let ocen (przestrzen:Przestrzen) badanaMrowka pozycjaDoOceny =
+        let mrowkiWSasiedztwie = funSasiedztwa pozycjaDoOceny |> MrowkiZSasiedztwa przestrzen
         let ocenaSkladowa mrowka2 = 1.0 - pobierzOdleglosc badanaMrowka mrowka2
-        let sumaOdleglosci = List.map ocenaSkladowa mrowkiWSasiedztwie |> List.sum
+        let sumaOdleglosci = Seq.map ocenaSkladowa mrowkiWSasiedztwie |> Seq.sum
         sumaOdleglosci / dzielnik
     ocen    
 
@@ -134,7 +139,7 @@ let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int,
 ///////
 
 let tworzMrowke (id, objDanych) =
-    {Id=id; Klasa=id; Dane=objDanych}
+    {Id=id; Dane=objDanych}
 
 let TworzMrowki obiektyDanych =
     obiektyDanych |> Seq.indexed |> Seq.map tworzMrowke
@@ -150,23 +155,70 @@ let RozmiescMrowki (los:Random) (przestrzen:Przestrzen) mrowki =
             posY <- generujPozycje()
         przestrzen.[posX, posY] <- Some mrowka
 
-/////////////////////////////////////////
-// NIE DZIAŁA DLA ZAPEŁNIONEGO SĄSIEDZTWA
-// O NIE
-/////////////////////////////////////////
-let PrzemiescMrowkeLosowo (los:Random) s_x s_y (przestrzen:Przestrzen) (mrowkaX, mrowkaY) mrowka =
-    let losujZnak () = PlusLubMinus1 los
-    let losujPrzesuniecie s = los.Next(1, s + 1) * losujZnak()
-    let losujNowaPozycje s m = (losujPrzesuniecie s) + m |> Modulo s
-    let losujNoweX () = losujNowaPozycje s_x mrowkaX
-    let losujNoweY () = losujNowaPozycje s_y mrowkaY
-    let mutable noweX = losujNoweX()
-    let mutable noweY = losujNoweY()
-    while przestrzen.[noweX, noweY] |> Option.isSome do
-        noweX <- losujNoweX()
-        noweY <- losujNoweY()
-    przestrzen.[noweX, noweY] <- Some mrowka
-    przestrzen.[mrowkaX, mrowkaY] <- None
+let PrzemiescMrowkeLosowo (los:Random) (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY) =
+    let pustePola = sasiedztwo |> Array.filter (fun (x, y) -> przestrzen.[x, y] |> Option.isNone)
+    let liczbaPol = Array.length pustePola
+    if liczbaPol > 0 then
+        let mrowka = przestrzen.[mrowkaX, mrowkaY] |> Option.get
+        let nowyX, nowyY = sasiedztwo.[los.Next(liczbaPol)]
+        przestrzen.[mrowkaX, mrowkaY] <- None
+        przestrzen.[nowyX, nowyY] <- Some mrowka
+
+let przemiescZachlannieWlasciwe funOceny (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY) =
+    let przemieszczanaMrowka = przestrzen.[mrowkaX, mrowkaY] |> Option.get
+    let pusteSasiedztwo = sasiedztwo |> PustePolaZSasiedztwa przestrzen
+    if Seq.length pusteSasiedztwo > 0 then
+        let (najlepszeX, najlepszeY) = pusteSasiedztwo |> Seq.maxBy (funOceny przemieszczanaMrowka)
+        przestrzen.[mrowkaX, mrowkaY] <- None
+        przestrzen.[najlepszeX, najlepszeY] <- Some przemieszczanaMrowka
+
+let PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc (los:Random) (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY) =
+    if los.NextDouble() <= szansaNaZachlannosc 
+    then przemiescZachlannieWlasciwe funOceny (przestrzen:Przestrzen) sasiedztwo (mrowkaX, mrowkaY)
+    else PrzemiescMrowkeLosowo los przestrzen sasiedztwo (mrowkaX, mrowkaY)     
+
+/////////
+// Określa klasę nawet, jeśli mrówka nie śpi.
+// A to ci ambaras.
+////////
+let OkreslKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka =
+    let klasa =
+        MrowkiZSasiedztwa przestrzen sasiedztwo 
+        |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
+        |> Seq.maxBy (fun (_, liczWystapien) -> liczWystapien)
+        |> fst
+    slownikKlas.[mrowka] <- klasa
+
+
+
+
+let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) =
+    let klasyMrowek = new Dictionary<Mrowka, int>()
+    for mrowka in mrowki do
+        klasyMrowek.Add(mrowka, mrowka.Id)
+
+    let bokPrzestrzeni = Array2D.length1 przestrzen
+    let s_x, s_y = 1, 1
+    let funSasiedztwa = SasiedztwoMoore'a s_x s_y bokPrzestrzeni
+    let sloOdleglosci = TworzSlownikOdleglosci mrowki OdlegloscEuklidesowa
+    let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci przestrzen
+    let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI StalaPresja
+    let szansaNaZachlannosc = 0.5
+    let funPrzemieszczenia = PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc los przestrzen
+    let funZmianyKlasy = OkreslKlaseMrowki przestrzen klasyMrowek    
+
+    for t=1 to liczbaIteracji do
+        let polaMrowek = PrzestrzenNaSeqPol przestrzen |> Seq.filter (fun (x, y) -> Option.isSome przestrzen.[x, y])
+        for pole in polaMrowek do
+            let x, y = pole
+            let mrowka = przestrzen.[x, y] |> Option.get
+            let ocena = funOceny mrowka pole
+            let pAktywacji = funPrawdopAktywacji ocena t
+            if los.NextDouble() <= pAktywacji
+            then 
+            else 
+
+
 
             
 

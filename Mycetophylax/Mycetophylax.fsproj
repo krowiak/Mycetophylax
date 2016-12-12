@@ -48,8 +48,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Pomocnicze.fs" />
     <Compile Include="Typy.fs" />
+    <Compile Include="Pomocnicze.fs" />
     <Compile Include="Parser.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
