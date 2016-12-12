@@ -121,7 +121,7 @@ let TworzSlownikOdleglosci mrowki funOdleglosci =
             slownik.Add((i, j), odleglosc)
     slownik
 
-let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int, float>) =
+let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int, float>) funSredniejOdleglosci =
     let s_x', s_y' = float s_x, float s_y 
     let dzielnik = (2.0*s_x' + 1.0) * (2.0*s_y' + 1.0)
     let pobierzOdleglosc {Id=m1} {Id=m2} =
@@ -129,10 +129,26 @@ let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int,
         mapaOdleglosci.[klucz]
     let ocen (przestrzen:Przestrzen) badanaMrowka pozycjaDoOceny =
         let mrowkiWSasiedztwie = funSasiedztwa pozycjaDoOceny |> MrowkiZSasiedztwa przestrzen
-        let ocenaSkladowa mrowka2 = 1.0 - pobierzOdleglosc badanaMrowka mrowka2
+        let ocenaSkladowa mrowka2 = 1.0 - ((pobierzOdleglosc badanaMrowka mrowka2) / (funSredniejOdleglosci badanaMrowka))
         let sumaOdleglosci = Seq.map ocenaSkladowa mrowkiWSasiedztwie |> Seq.sum
         sumaOdleglosci / dzielnik
-    ocen    
+    ocen 
+
+///////
+// Średnie odległości między agentami
+///////  
+
+// coś tu pusto ;-(
+
+let TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki =
+    let liczbaMrowek = Seq.length mrowki
+    let mutable sumaOdleglosci = 0.0
+    for {Dane=mrowka1} in mrowki do
+        for {Dane=mrowka2} in mrowki do
+            sumaOdleglosci <- sumaOdleglosci + funOdleglosci mrowka1 mrowka2
+    let najsredniejszaOdleglosc = sumaOdleglosci / float (liczbaMrowek * (liczbaMrowek - 1))
+    fun mrowka -> najsredniejszaOdleglosc
+   
 
 ///////
 // Mrówki
@@ -212,9 +228,6 @@ let WypiszKlasyWPrzestrzeni (klasy:IDictionary<Mrowka, int>) (przestrzen:Przestr
     let okreslSymbolKlasyMrowki mrowka = klasy.[mrowka].ToString()
     wypiszPrzestrzen przestrzen okreslSymbolKlasyMrowki
 
-
-
-
 let WypiszMrowkiWPrzestrzeni (przestrzen:Przestrzen) =
     wypiszPrzestrzen przestrzen (fun {Id=idMrowki} -> idMrowki.ToString())
 
@@ -226,8 +239,10 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
     let bokPrzestrzeni = Array2D.length1 przestrzen
     let s_x, s_y = 1, 1
     let funSasiedztwa = SasiedztwoMoore'a s_x s_y bokPrzestrzeni
-    let sloOdleglosci = TworzSlownikOdleglosci mrowki OdlegloscEuklidesowa
-    let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci przestrzen
+    let funOdleglosci = OdlegloscEuklidesowa
+    let sloOdleglosci = TworzSlownikOdleglosci mrowki funOdleglosci
+    let funSredniejOdleglosci = TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki
+    let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci funSredniejOdleglosci przestrzen 
     let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI StalaPresja
     let szansaNaZachlannosc = 0.5
     let funPrzemieszczenia = PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc los przestrzen
@@ -274,20 +289,16 @@ let main argv =
     let przestrzen = List.length mrowki |> BokPrzestrzeni |> ZwrocPrzestrzen
     RozmiescMrowki maszynaLosujaca przestrzen mrowki
     WypiszMrowkiWPrzestrzeni przestrzen
-    System.Console.ReadKey() |> ignore
     printfn ""
-
-    let debug = true
-    let slownikKlas = Grupuj przestrzen mrowki 100 maszynaLosujaca debug
     
-    System.Console.ReadKey() |> ignore
+    printfn "Grupowanie..."
+    let debug = false
+    let slownikKlas = Grupuj przestrzen mrowki 5000 maszynaLosujaca debug
+    
+    printfn "Pogrupowano!"
     WypiszMrowkiWPrzestrzeni przestrzen
     printfn ""
-    System.Console.ReadKey() |> ignore
     WypiszKlasyWPrzestrzeni slownikKlas przestrzen
-    System.Console.ReadKey() |> ignore
 
-    //Seq.iter (printfn "%A") mrowki
-    //printfn "%A" przestrzen
-    // printfn "%A" argv
+    System.Console.ReadKey() |> ignore
     0 // return an integer exit code
