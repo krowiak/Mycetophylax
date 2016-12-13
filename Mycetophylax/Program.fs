@@ -131,15 +131,15 @@ let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int,
         let mrowkiWSasiedztwie = funSasiedztwa pozycjaDoOceny |> MrowkiZSasiedztwa przestrzen
         let ocenaSkladowa mrowka2 = 1.0 - ((pobierzOdleglosc badanaMrowka mrowka2) / (funSredniejOdleglosci badanaMrowka))
         let sumaOdleglosci = Seq.map ocenaSkladowa mrowkiWSasiedztwie |> Seq.sum
-        sumaOdleglosci / dzielnik
+        max 0.0 (sumaOdleglosci / dzielnik)
     ocen 
 
 ///////
 // Średnie odległości między agentami
-///////  
+///////
 
-// coś tu pusto ;-(
-
+/////////// Chyba do poprawy? Uwzględnia odległość mrówki do siebie samej.
+/////////// (ten wzór jest trosik niejasny)
 let TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki =
     let liczbaMrowek = Seq.length mrowki
     let mutable sumaOdleglosci = 0.0
@@ -148,6 +148,18 @@ let TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki =
             sumaOdleglosci <- sumaOdleglosci + funOdleglosci mrowka1 mrowka2
     let najsredniejszaOdleglosc = sumaOdleglosci / float (liczbaMrowek * (liczbaMrowek - 1))
     fun mrowka -> najsredniejszaOdleglosc
+
+let TworzSredniaOdlegloscDlaKazdegoAgenta funOdleglosci mrowki =
+    let slownikOdleglosci = new Dictionary<Mrowka, float>()
+    let liczbaMrowek = Seq.length mrowki
+    for mrowka1 in mrowki do
+        let mutable sumaOdleglosci = 0.0
+        for mrowka2 in mrowki do
+            if mrowka1 <> mrowka2
+            then sumaOdleglosci <- sumaOdleglosci + funOdleglosci mrowka1.Dane mrowka2.Dane
+        let sredniaOdleglosc = sumaOdleglosci / (float liczbaMrowek - 1.0)
+        slownikOdleglosci.Add(mrowka1, sredniaOdleglosc)
+    fun mrowka -> slownikOdleglosci.[mrowka]
    
 
 ///////
@@ -237,14 +249,14 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
         klasyMrowek.Add(mrowka, mrowka.Id)
 
     let bokPrzestrzeni = Array2D.length1 przestrzen
-    let s_x, s_y = 1, 1
+    let s_x, s_y = 2, 2
     let funSasiedztwa = SasiedztwoMoore'a s_x s_y bokPrzestrzeni
     let funOdleglosci = OdlegloscEuklidesowa
     let sloOdleglosci = TworzSlownikOdleglosci mrowki funOdleglosci
-    let funSredniejOdleglosci = TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki
+    let funSredniejOdleglosci = TworzSredniaOdlegloscDlaKazdegoAgenta funOdleglosci mrowki //TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki
     let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci funSredniejOdleglosci przestrzen 
     let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI StalaPresja
-    let szansaNaZachlannosc = 0.5
+    let szansaNaZachlannosc = 0.9
     let funPrzemieszczenia = PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc los przestrzen
     let funZmianyKlasy = ZmienKlaseMrowki przestrzen klasyMrowek    
 
@@ -283,6 +295,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
 let main argv = 
     let maszynaLosujaca = new Random()
     use dane = System.IO.File.OpenRead(@"E:\Pobrane\irisBezSmieci.data")
+    //use dane = System.IO.File.OpenRead(@"E:\Pobrane\gupieDane.txt")
     let wiersze = ParsujDane dane
     let znormalizowaneDane = wiersze |> NormalizacjaZScoreChyba
     let mrowki = znormalizowaneDane|> TworzMrowki |> Seq.toList
