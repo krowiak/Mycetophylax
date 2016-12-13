@@ -105,6 +105,13 @@ let SzansaAktywacji pAktywacji funPresji ocena czas =
     let wplywOceny = ocena ** presja
     licznik / (licznik + wplywOceny)
 
+let TworzPresjeZaleznaOdCzasu (srednieOcenyDlaT:SrednieOcenyDlaCzasu) k_lambda t_max =
+    let funPresji t =
+        let wplywParametru = k_lambda / srednieOcenyDlaT.[t]
+        let wplywCzasu = (float t_max / float t) |> log10
+        2.0 + wplywParametru * wplywCzasu
+    funPresji
+
 ///////
 // Ocena
 ///////
@@ -160,7 +167,21 @@ let TworzSredniaOdlegloscDlaKazdegoAgenta funOdleglosci mrowki =
         let sredniaOdleglosc = sumaOdleglosci / (float liczbaMrowek - 1.0)
         slownikOdleglosci.Add(mrowka1, sredniaOdleglosc)
     fun mrowka -> slownikOdleglosci.[mrowka]
-   
+
+let TworzSredniaOdlegloscZaleznaOdCzasu (srednieOcenyDlaT:SrednieOcenyDlaCzasu) delta_t k_alfa poczWartosc =
+    let historia = new Dictionary<int, float>()
+    let funAlfa t =
+        let wynik = 
+            if t <= delta_t
+            then poczWartosc - k_alfa * poczWartosc // ??????????????????
+            else 
+                let stareT = t - delta_t
+                let wartHistoryczna = historia.[stareT]
+                let roznicaSrednichOcen = srednieOcenyDlaT.[t] - srednieOcenyDlaT.[stareT]
+                wartHistoryczna - k_alfa * roznicaSrednichOcen
+        historia.[t] <- wynik
+        wynik
+    funAlfa
 
 ///////
 // Mrówki
@@ -249,7 +270,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
         klasyMrowek.Add(mrowka, mrowka.Id)
 
     let bokPrzestrzeni = Array2D.length1 przestrzen
-    let s_x, s_y = 2, 2
+    let s_x, s_y = 1, 1
     let funSasiedztwa = SasiedztwoMoore'a s_x s_y bokPrzestrzeni
     let funOdleglosci = OdlegloscEuklidesowa
     let sloOdleglosci = TworzSlownikOdleglosci mrowki funOdleglosci
@@ -275,9 +296,11 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
                 ()
 
         if debug then
+            Console.Clear() |> ignore
             printfn "Iteracja %i zakończona" t
-            WypiszMrowkiWPrzestrzeni przestrzen
+            WypiszKlasyWPrzestrzeni klasyMrowek przestrzen
             printfn ""
+            System.Threading.Thread.Sleep(150)
             //Console.ReadKey() |> ignore
 
     klasyMrowek
