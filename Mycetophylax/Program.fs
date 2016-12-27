@@ -314,15 +314,17 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
     let klasyMrowek = new Dictionary<Mrowka, int>() :> IDictionary<Mrowka, int>
     for mrowka in mrowki do
         klasyMrowek.Add(mrowka, mrowka.Id)
+    let srednieOcenyDlaT = new Dictionary<int, float>() :> IDictionary<int, float>
 
     let bokPrzestrzeni = Array2D.length1 przestrzen
-    let s_x, s_y = 1, 1
+    let s_x, s_y = 2, 2
     let funSasiedztwa = SasiedztwoMoore'a s_x s_y bokPrzestrzeni
     let funOdleglosci = OdlegloscEuklidesowa
     let sloOdleglosci = TworzSlownikOdleglosci mrowki funOdleglosci
     let funSredniejOdleglosci = TworzSredniaOdlegloscDlaKazdegoAgenta funOdleglosci mrowki //TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki
     let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci funSredniejOdleglosci 
-    let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI StalaPresja
+    let funPresji = TworzPresjeZaleznaOdCzasu srednieOcenyDlaT 1.0 liczbaIteracji
+    let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI funPresji //StalaPresja
     let szansaNaZachlannosc = 0.9
     let funPrzemieszczenia przestrzen = PrzemiescMrowkeZachlannie (funOceny przestrzen) szansaNaZachlannosc los przestrzen
     let funKlasy przestrzen = OkreslNowaKlaseMrowki przestrzen klasyMrowek
@@ -343,6 +345,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
             |> List.map (fun pole -> PobierzZawartosc aktPrzestrzen pole |> Option.get, pole)
             |> List.map (fun (mrowka, pole) -> mrowka, funOceny aktPrzestrzen mrowka pole)
             |> Map.ofList
+        srednieOcenyDlaT.[t] <- ocenySrodowisk |> Map.toSeq |> Seq.sumBy (fun (_, ocena) -> ocena)
 
         //////////
         /// Klasy zaczęły się zmieniać dla mrówek bez sąsiadów!
