@@ -25,27 +25,63 @@ let OdlegloscEuklidesowa (ObiektDanych x1) (ObiektDanych x2) =
     sqrt odleglosc
 
 ///////
-// Normalizacja
+// Standaryzacja
+///////
+
+// https://www.mathsisfun.com/data/standard-deviation-formulas.html
+let OdchylenieStandardoweWymiaru (dane:float[]) =
+    let dzielnik = Array.length dane |> float
+    let srednia = Array.average dane
+    let suma = 
+        dane 
+        |> Array.map (fun x_i -> (x_i - srednia)**2.0)
+        |> Array.sum
+    (suma / dzielnik) |> sqrt
+    
+// http://sebastianraschka.com/Articles/2014_about_feature_scaling.html#about-standardization
+let ZScore srednia odchylenie x =
+    (x - srednia) / odchylenie
+
+let ZScoreWymiaru (dane:float[]) =
+    let srednia = Array.average dane
+    let odchylenie = OdchylenieStandardoweWymiaru dane
+    dane |> Array.map (ZScore srednia odchylenie)
+
+let StandaryzacjaZScore (dane:seq<ObiektDanych>) = 
+    // Tablice NIE SĄ KOPIOWANE, dane pierwotne przepadają, BYĆ CZUJNYM
+    let daneTab = Seq.map (fun (ObiektDanych d) -> d) dane |> Seq.toArray
+    let dlugoscWektora = daneTab.[0].Length
+    let pobierz indeks tablica = Array.get tablica indeks |> Some
+    for wymiar in 0..(dlugoscWektora - 1) do
+        let wartosciWymiaru = Array.choose (pobierz wymiar) daneTab
+        let znormalizowaneWartosci = wartosciWymiaru |> ZScoreWymiaru
+        for i in 0..(daneTab.Length - 1) do
+            daneTab.[i].[wymiar] <- znormalizowaneWartosci.[i]
+    Seq.map (fun tab -> ObiektDanych tab) daneTab
+        
+
+///////
+// Skalowanie
 ///////
     
-// http://stats.stackexchange.com/a/180249
-let ZScoreBycMoze min max dana : float =
+// http://sebastianraschka.com/Articles/2014_about_feature_scaling.html#about-standardization
+let MinMax min max dana : float =
     (dana - min) / (max - min)
 
-let ZScoreWymiaru min max (dane:float[]) =
-    let zScoreWymiaru = ZScoreBycMoze min max
+let MinMaxWymiaru min max (dane:float[]) =
+    let zScoreWymiaru = MinMax min max
     Array.map zScoreWymiaru dane
 
-let NormalizacjaWymiaruZScore (_:int) (dane:float[]) =
+let MinMaxWymiaruZScore (_:int) (dane:float[]) =
     let min = Array.min dane
     let max = Array.max dane
-    ZScoreWymiaru min max dane
+    MinMaxWymiaru min max dane
 
-let NormalizacjaWymiaruZScoreWzgledem zakresy wymiar dane =
+let MinMaxWymiaruWzgledem zakresy wymiar dane =
     let min, max = Map.find wymiar zakresy
-    ZScoreWymiaru min max dane
+    MinMaxWymiaru min max dane
 
-let NormalizacjaPoWymiarach (normalizatorWymiaru:(int -> float[] -> float[])) (dane:seq<ObiektDanych>)  =
+let SkalowaniePoWymiarach (normalizatorWymiaru:(int -> float[] -> float[])) (dane:seq<ObiektDanych>)  =
     // Tablice NIE SĄ KOPIOWANE, dane pierwotne przepadają, BYĆ CZUJNYM
     let daneTab = Seq.map (fun (ObiektDanych d) -> d) dane |> Seq.toArray
     let dlugoscWektora = daneTab.[0].Length
@@ -57,8 +93,8 @@ let NormalizacjaPoWymiarach (normalizatorWymiaru:(int -> float[] -> float[])) (d
             daneTab.[i].[wymiar] <- znormalizowaneWartosci.[i]
     Seq.map (fun tab -> ObiektDanych tab) daneTab
             
-let NormalizacjaZScoreChyba : (seq<ObiektDanych> -> seq<ObiektDanych>) = 
-    NormalizacjaPoWymiarach NormalizacjaWymiaruZScore
+let SkalowanieMinMax : (seq<ObiektDanych> -> seq<ObiektDanych>) = 
+    SkalowaniePoWymiarach MinMaxWymiaruZScore
 
 ///////
 // Przestrzen
@@ -230,8 +266,18 @@ let PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc (los:Random) (przestr
 // Określa klasę nawet, jeśli mrówka nie śpi.
 // A to ci ambaras.
 ////////
+let OkreslNowaKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo =
+    MrowkiZSasiedztwa przestrzen sasiedztwo 
+    |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
+    |> Seq.maxBy (fun (_, liczWystapien) -> liczWystapien)
+    |> fst
+
+/////////
+// Określa klasę nawet, jeśli mrówka nie śpi.
+// A to ci ambaras.
+////////
 let ZmienKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka =
-    let klasa =
+    let klasa = 
         MrowkiZSasiedztwa przestrzen sasiedztwo 
         |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
         |> Seq.maxBy (fun (_, liczWystapien) -> liczWystapien)
@@ -275,39 +321,61 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
     let funOdleglosci = OdlegloscEuklidesowa
     let sloOdleglosci = TworzSlownikOdleglosci mrowki funOdleglosci
     let funSredniejOdleglosci = TworzSredniaOdlegloscDlaKazdegoAgenta funOdleglosci mrowki //TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki
-    let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci funSredniejOdleglosci przestrzen 
+    let funOceny = TworzFunkcjeOceny s_x s_y funSasiedztwa sloOdleglosci funSredniejOdleglosci 
     let funPrawdopAktywacji = SzansaAktywacji PRAWDOP_AKTYWACJI StalaPresja
     let szansaNaZachlannosc = 0.9
-    let funPrzemieszczenia = PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc los przestrzen
-    let funZmianyKlasy = ZmienKlaseMrowki przestrzen klasyMrowek    
+    let funPrzemieszczenia przestrzen = PrzemiescMrowkeZachlannie (funOceny przestrzen) szansaNaZachlannosc los przestrzen
+    let funKlasy przestrzen = OkreslNowaKlaseMrowki przestrzen klasyMrowek
+    let funZmianyKlasy przestrzen = ZmienKlaseMrowki przestrzen klasyMrowek
+    let mutable aktPrzestrzen = przestrzen
 
     for t=1 to liczbaIteracji do
-        for pole in PrzestrzenNaSeqPol przestrzen do
+        let nastepnaPrzestrzen = Array2D.copy aktPrzestrzen
+        let mutable zmianyKlas = []
+
+        let polaZMrowkami = 
+            PrzestrzenNaSeqPol aktPrzestrzen 
+            |> Seq.filter (PobierzZawartosc aktPrzestrzen >> Option.isSome)
+            |> Seq.toList
+
+        let ocenySrodowisk =
+            polaZMrowkami
+            |> List.map (fun pole -> PobierzZawartosc aktPrzestrzen pole |> Option.get, pole)
+            |> List.map (fun (mrowka, pole) -> mrowka, funOceny aktPrzestrzen mrowka pole)
+            |> Map.ofList
+
+        //////////
+        /// Klasy zaczęły się zmieniać dla mrówek bez sąsiadów!
+        /// Najpierw jest obliczana ocena, potem następuje przemieszczanie, więc czasem mrówka z oceną > 0 zostaje sama.
+        /// Cóż za niefortunne zdarzenie.
+        //////////
+        for pole in polaZMrowkami do
             let x, y = pole
-            match przestrzen.[x, y] with
-            | Some mrowka ->
-                let ocena = funOceny mrowka pole
-                let pAktywacji = funPrawdopAktywacji ocena t
-                let sasiedztwo = funSasiedztwa pole
-                if los.NextDouble() <= pAktywacji
-                then funPrzemieszczenia sasiedztwo pole
-                else funZmianyKlasy sasiedztwo mrowka
-            | None ->
-                ()
+            let mrowka = aktPrzestrzen.[x, y] |> Option.get
+            let ocena = Map.find mrowka ocenySrodowisk
+            let pAktywacji = funPrawdopAktywacji ocena t
+            let sasiedztwo = funSasiedztwa pole
+            if los.NextDouble() <= pAktywacji
+            then funPrzemieszczenia nastepnaPrzestrzen sasiedztwo pole
+            else zmianyKlas <- (mrowka, funKlasy aktPrzestrzen sasiedztwo)::zmianyKlas
+
+        for (mrowka, klasa) in zmianyKlas do
+            klasyMrowek.[mrowka] <- klasa
+        aktPrzestrzen <- nastepnaPrzestrzen
 
         if debug then
             Console.Clear() |> ignore
             printfn "Iteracja %i zakończona" t
-            WypiszKlasyWPrzestrzeni klasyMrowek przestrzen
+            WypiszKlasyWPrzestrzeni klasyMrowek aktPrzestrzen
             printfn ""
-            System.Threading.Thread.Sleep(150)
+            System.Threading.Thread.Sleep(25)
             //Console.ReadKey() |> ignore
 
-    klasyMrowek
+    aktPrzestrzen, klasyMrowek
             
     
 ///////
-// A Niech To: przemieszczanie usuwa mrówkę przed określeniem sąsiedztwa -> mrówka może się przenieśc na pole, na którym już była.
+// A Niech To: przemieszczanie usuwa mrówkę przed określeniem sąsiedztwa -> mrówka może się przenieść na pole, na którym już była.
 // Bez tego mrówka próbuje się porównać sama ze sobą przy przemieszczaniu.
 // Coś należy uczynić.
 //////
@@ -320,8 +388,10 @@ let main argv =
     use dane = System.IO.File.OpenRead(@"E:\Pobrane\irisBezSmieci.data")
     //use dane = System.IO.File.OpenRead(@"E:\Pobrane\gupieDane.txt")
     let wiersze = ParsujDane dane
-    let znormalizowaneDane = wiersze |> NormalizacjaZScoreChyba
-    let mrowki = znormalizowaneDane|> TworzMrowki |> Seq.toList
+    let przygotowaneDane = wiersze |> StandaryzacjaZScore
+    //let przygotowaneDane = wiersze |> SkalowanieMinMax
+    let mrowki = przygotowaneDane |> TworzMrowki |> Seq.toList
+
     let przestrzen = List.length mrowki |> BokPrzestrzeni |> ZwrocPrzestrzen
     RozmiescMrowki maszynaLosujaca przestrzen mrowki
     WypiszMrowkiWPrzestrzeni przestrzen
@@ -329,12 +399,12 @@ let main argv =
     
     printfn "Grupowanie..."
     let debug = false
-    let slownikKlas = Grupuj przestrzen mrowki 5000 maszynaLosujaca debug
+    let pogrupowanaPrzestrzen, slownikKlas = Grupuj przestrzen mrowki 5000 maszynaLosujaca debug
     
     printfn "Pogrupowano!"
-    WypiszMrowkiWPrzestrzeni przestrzen
+    WypiszMrowkiWPrzestrzeni pogrupowanaPrzestrzen
     printfn ""
-    WypiszKlasyWPrzestrzeni slownikKlas przestrzen
+    WypiszKlasyWPrzestrzeni slownikKlas pogrupowanaPrzestrzen
 
     System.Console.ReadKey() |> ignore
     0 // return an integer exit code

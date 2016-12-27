@@ -11,3 +11,5 @@ let PrzestrzenNaSeqPol (przestrzen:Przestrzen) = seq {
         for y=0 to (Array2D.length2 przestrzen - 1) do
             yield x, y
 }
+
+let PobierzZawartosc (przestrzen:Przestrzen) (x, y) = przestrzen.[x, y]
