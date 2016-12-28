@@ -179,14 +179,25 @@ let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int,
 // Średnie odległości między agentami
 ///////
 
-/////////// Chyba do poprawy? Uwzględnia odległość mrówki do siebie samej.
+/////////// Uwzględnia odległość mrówki do siebie samej.
 /////////// (ten wzór jest trosik niejasny)
-let TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki =
+let TworzStalaSredniaOdlegloscPomiedzyAgentamiPrawdopodobnieZle funOdleglosci mrowki =
     let liczbaMrowek = Seq.length mrowki
     let mutable sumaOdleglosci = 0.0
     for {Dane=mrowka1} in mrowki do
         for {Dane=mrowka2} in mrowki do
             sumaOdleglosci <- sumaOdleglosci + funOdleglosci mrowka1 mrowka2
+    let najsredniejszaOdleglosc = sumaOdleglosci / float (liczbaMrowek * (liczbaMrowek - 1))
+    fun mrowka -> najsredniejszaOdleglosc
+
+/////////// Nie uwzględnia odległości mrówki do siebie samej.
+let TworzStalaSredniaOdlegloscPomiedzyAgentami funOdleglosci mrowki =
+    let liczbaMrowek = Seq.length mrowki
+    let mutable sumaOdleglosci = 0.0
+    for mrowka1 in mrowki do
+        for mrowka2 in mrowki do
+            if mrowka1.Id <> mrowka2.Id
+            then sumaOdleglosci <- sumaOdleglosci + funOdleglosci mrowka1.Dane mrowka2.Dane
     let najsredniejszaOdleglosc = sumaOdleglosci / float (liczbaMrowek * (liczbaMrowek - 1))
     fun mrowka -> najsredniejszaOdleglosc
 
