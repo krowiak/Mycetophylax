@@ -167,9 +167,7 @@ let TworzSlownikOdleglosci mrowki funOdleglosci =
 let TworzFunkcjeOceny s_x s_y funSasiedztwa (mapaOdleglosci:IDictionary<int*int, float>) funSredniejOdleglosci =
     let s_x', s_y' = float s_x, float s_y 
     let dzielnik = (2.0*s_x' + 1.0) * (2.0*s_y' + 1.0)
-    let pobierzOdleglosc {Id=m1} {Id=m2} =
-        let klucz = if m1 < m2 then m1, m2 else m2, m1
-        mapaOdleglosci.[klucz]
+    let pobierzOdleglosc = PobierzOdleglosc mapaOdleglosci
     let ocen (przestrzen:Przestrzen) badanaMrowka pozycjaDoOceny =
         let mrowkiWSasiedztwie = funSasiedztwa pozycjaDoOceny |> MrowkiZSasiedztwa przestrzen
         let ocenaSkladowa mrowka2 = 1.0 - ((pobierzOdleglosc badanaMrowka mrowka2) / (funSredniejOdleglosci badanaMrowka))
@@ -281,6 +279,14 @@ let OkreslNowaKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowk
         | Some _ -> klasaMrowki
         | None -> (Seq.head klasaLiczba) |> fst
 
+let OkreslNowaKlaseMrowkiWSposobNiezgodnyZAlgorytmemONie (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka (slownikOdleglosci:IDictionary<int*int, float>) =
+    let najpodobniejszaZMrowek = 
+        MrowkiZSasiedztwa przestrzen sasiedztwo
+        |> Seq.map (fun mrowka2 -> mrowka2, PobierzOdleglosc slownikOdleglosci mrowka mrowka2)
+        |> Seq.minBy (fun (_, ocena) -> ocena)
+        |> fst
+    slownikKlas.[najpodobniejszaZMrowek]
+
 /////////
 // Określa klasę nawet, jeśli mrówka nie śpi.
 // A to ci ambaras.
@@ -322,7 +328,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
     let srednieOcenyDlaT = new Dictionary<int, float>() :> IDictionary<int, float>
 
     let bokPrzestrzeni = Array2D.length1 przestrzen
-    let s_x, s_y = 2, 2
+    let s_x, s_y = 1, 1
     let funSasiedztwa = SasiedztwoMoore'a s_x s_y bokPrzestrzeni
     let funOdleglosci = OdlegloscEuklidesowa
     let sloOdleglosci = TworzSlownikOdleglosci mrowki funOdleglosci
@@ -333,6 +339,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
     let szansaNaZachlannosc = 0.9
     let funPrzemieszczenia przestrzen = PrzemiescMrowkeZachlannie (funOceny przestrzen) szansaNaZachlannosc los przestrzen
     let funKlasy przestrzen = OkreslNowaKlaseMrowki przestrzen klasyMrowek
+    //let funKlasy przestrzen sasiedztwo mrowka = OkreslNowaKlaseMrowkiWSposobNiezgodnyZAlgorytmemONie przestrzen klasyMrowek sasiedztwo mrowka sloOdleglosci
     let funZmianyKlasy przestrzen = ZmienKlaseMrowki przestrzen klasyMrowek
     let mutable aktPrzestrzen = przestrzen
 

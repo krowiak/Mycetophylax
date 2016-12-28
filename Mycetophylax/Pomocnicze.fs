@@ -13,3 +13,7 @@ let PrzestrzenNaSeqPol (przestrzen:Przestrzen) = seq {
 }
 
 let PobierzZawartosc (przestrzen:Przestrzen) (x, y) = przestrzen.[x, y]
+
+let PobierzOdleglosc (mapaOdleglosci:IDictionary<int*int, float>) {Id=m1} {Id=m2} =
+    let klucz = if m1 < m2 then m1, m2 else m2, m1
+    mapaOdleglosci.[klucz]
