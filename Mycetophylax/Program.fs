@@ -266,22 +266,27 @@ let PrzemiescMrowkeZachlannie funOceny szansaNaZachlannosc (los:Random) (przestr
 // Określa klasę nawet, jeśli mrówka nie śpi.
 // A to ci ambaras.
 ////////
-let OkreslNowaKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo =
-    MrowkiZSasiedztwa przestrzen sasiedztwo 
-    |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
-    |> Seq.maxBy (fun (_, liczWystapien) -> liczWystapien)
-    |> fst
+let OkreslNowaKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka =
+    let _, klasaLiczba = 
+        MrowkiZSasiedztwa przestrzen sasiedztwo
+        |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
+        |> Seq.groupBy (fun (_, liczba) -> liczba)
+        |> Seq.maxBy (fun (liczba, _) -> liczba)    
+
+    if Seq.length klasaLiczba = 1
+    then (Seq.head klasaLiczba) |> fst
+    else 
+        let klasaMrowki = slownikKlas.[mrowka]
+        match Seq.tryFind (fun (klasa, _) -> klasaMrowki = klasa) klasaLiczba with
+        | Some _ -> klasaMrowki
+        | None -> (Seq.head klasaLiczba) |> fst
 
 /////////
 // Określa klasę nawet, jeśli mrówka nie śpi.
 // A to ci ambaras.
 ////////
 let ZmienKlaseMrowki (przestrzen:Przestrzen) (slownikKlas:IDictionary<Mrowka, int>) sasiedztwo mrowka =
-    let klasa = 
-        MrowkiZSasiedztwa przestrzen sasiedztwo 
-        |> Seq.countBy (fun mrowka -> slownikKlas.[mrowka])
-        |> Seq.maxBy (fun (_, liczWystapien) -> liczWystapien)
-        |> fst
+    let klasa = OkreslNowaKlaseMrowki przestrzen slownikKlas sasiedztwo mrowka
     slownikKlas.[mrowka] <- klasa
 
 ///////
@@ -360,7 +365,7 @@ let Grupuj (przestrzen:Przestrzen) mrowki liczbaIteracji (los:Random) debug =
             let sasiedztwo = funSasiedztwa pole
             if los.NextDouble() <= pAktywacji
             then funPrzemieszczenia nastepnaPrzestrzen sasiedztwo pole
-            else zmianyKlas <- (mrowka, funKlasy aktPrzestrzen sasiedztwo)::zmianyKlas
+            else zmianyKlas <- (mrowka, funKlasy aktPrzestrzen sasiedztwo mrowka)::zmianyKlas
 
         for (mrowka, klasa) in zmianyKlas do
             klasyMrowek.[mrowka] <- klasa
