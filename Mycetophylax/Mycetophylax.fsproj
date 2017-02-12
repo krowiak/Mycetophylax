@@ -51,6 +51,16 @@
     <Compile Include="Typy.fs" />
     <Compile Include="Pomocnicze.fs" />
     <Compile Include="Parser.fs" />
+    <Compile Include="Odleglosc.fs" />
+    <Compile Include="Standaryzacja.fs" />
+    <Compile Include="Skalowanie.fs" />
+    <Compile Include="Przestrzen.fs" />
+    <Compile Include="Sasiedztwo.fs" />
+    <Compile Include="Aktywacja.fs" />
+    <Compile Include="Ocena.fs" />
+    <Compile Include="Przemieszczanie.fs" />
+    <Compile Include="Klasy.fs" />
+    <Compile Include="Mrowki.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
   </ItemGroup>
